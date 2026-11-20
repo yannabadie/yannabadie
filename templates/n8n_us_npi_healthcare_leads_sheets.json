@@ -1,0 +1,91 @@
+{
+  "name": "US Healthcare Provider & Clinic Leads (CMS NPI v2.1) -> Google Sheets",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~npi-healthcare-providers-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"mode\": \"search\",\n  \"taxonomyDescription\": \"Cardiology\",\n  \"state\": \"CA\",\n  \"enumerationType\": \"NPI-2\",\n  \"onlyWithPhone\": true,\n  \"maxResults\": 100\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-npi-call",
+      "name": "Fetch US NPI Providers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "NPI_Providers",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "npi": "={{$json.npi}}",
+            "enumerationType": "={{$json.enumerationType}}",
+            "providerName": "={{$json.providerName}}",
+            "primarySpecialty": "={{$json.primarySpecialty}}",
+            "practiceCity": "={{$json.practiceCity}}",
+            "practiceState": "={{$json.practiceState}}",
+            "practicePhone": "={{$json.practicePhone}}",
+            "practiceFax": "={{$json.practiceFax}}",
+            "authorizedOfficialName": "={{$json.authorizedOfficialName}}",
+            "authorizedOfficialPhone": "={{$json.authorizedOfficialPhone}}",
+            "nppesUrl": "={{$json.nppesUrl}}"
+          },
+          "matchingColumns": ["npi"]
+        }
+      },
+      "id": "sheets-upsert",
+      "name": "Upsert into Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{"node": "Fetch US NPI Providers", "type": "main", "index": 0}]]
+    },
+    "Fetch US NPI Providers": {
+      "main": [[{"node": "Upsert into Google Sheets", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-npi-providers-template-v1"
+  }
+}
