@@ -1,0 +1,248 @@
+{
+  "name": "Website Contact, Social & Tech Stack Enricher (Webhook -> Google Sheets)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "website-contact-tech-enrich",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-domains-trigger",
+      "name": "Webhook (Receive Domain List)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~website-contact-tech-enricher-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"mode\": \"enrich\",\n  \"domains\": {{JSON.stringify($json.body?.domains || ['apify.com', 'linear.app'])}},\n  \"maxPagesPerDomain\": 3,\n  \"onlyWithEmail\": false,\n  \"maxDomains\": 100\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-enrich-call",
+      "name": "Enrich Domains (Contacts + Tech Stack)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-domain",
+              "leftValue": "={{$json.domain}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "reachable-http",
+              "leftValue": "={{$json.httpStatus}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-reachable-domains",
+      "name": "Keep Reachable Domains",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "flat-tech-stack",
+              "name": "techStackCsv",
+              "value": "={{($json.techStack || []).join(', ')}}",
+              "type": "string"
+            },
+            {
+              "id": "flat-emails",
+              "name": "allEmailsCsv",
+              "value": "={{($json.emails || []).join(', ')}}",
+              "type": "string"
+            },
+            {
+              "id": "linkedin-profile",
+              "name": "linkedinUrl",
+              "value": "={{$json.socials?.linkedin || ''}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "set-flatten-enrichment",
+      "name": "Flatten Tech Stack & Socials",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        960,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Enriched_Domains",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "domain": "={{$json.domain}}",
+            "httpStatus": "={{$json.httpStatus}}",
+            "title": "={{$json.title}}",
+            "primaryEmail": "={{$json.primaryEmail}}",
+            "allEmails": "={{$json.allEmailsCsv}}",
+            "primaryPhone": "={{$json.primaryPhone}}",
+            "linkedinUrl": "={{$json.linkedinUrl}}",
+            "techStack": "={{$json.techStackCsv}}",
+            "pagesCrawled": "={{$json.pagesCrawled}}",
+            "hasContactPage": "={{$json.hasContactPage}}",
+            "hasLegalPage": "={{$json.hasLegalPage}}",
+            "finalUrl": "={{$json.finalUrl}}"
+          },
+          "matchingColumns": [
+            "domain"
+          ]
+        }
+      },
+      "id": "sheets-enrich-upsert",
+      "name": "Upsert Enriched Leads to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1220,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Website Contact & 54-Tech Stack Enricher\n1. Set n8n env var `APIFY_TOKEN` (zero hardcoded secrets).\n2. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` in **Upsert Enriched Leads to Google Sheets**.\n3. Test via `POST /webhook-test/website-contact-tech-enrich` with body `{\"domains\": [\"apify.com\", \"linear.app\"]}`.",
+        "height": 195,
+        "width": 540,
+        "color": 5
+      },
+      "id": "sticky-enrich-setup",
+      "name": "Setup & Webhook Test",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Clean CRM-Ready Output\n- **Keep Reachable Domains** filters out failed DNS/HTTP entries.\n- **Flatten Tech Stack & Socials** converts arrays (`techStack`, `emails`) into spreadsheet-ready CSV strings.\n- **Upsert** deduplicates cleanly on `domain`.",
+        "height": 175,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-enrich-output",
+      "name": "Normalization & Upsert Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (Receive Domain List)": {
+      "main": [
+        [
+          {
+            "node": "Enrich Domains (Contacts + Tech Stack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Domains (Contacts + Tech Stack)": {
+      "main": [
+        [
+          {
+            "node": "Keep Reachable Domains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Reachable Domains": {
+      "main": [
+        [
+          {
+            "node": "Flatten Tech Stack & Socials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Tech Stack & Socials": {
+      "main": [
+        [
+          {
+            "node": "Upsert Enriched Leads to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-website-enrich-template-v1"
+  }
+}

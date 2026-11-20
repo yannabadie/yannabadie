@@ -1,0 +1,261 @@
+{
+  "name": "Google News & GDELT Daily Brand & Sentiment Tone Monitor -> Google Sheets & Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "trigger-news-daily",
+      "name": "Daily 08:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~google-news-gdelt-api-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"mode\": \"combined\",\n  \"query\": \"artificial intelligence\",\n  \"language\": \"en\",\n  \"country\": \"US\",\n  \"when\": \"1d\",\n  \"includeToneChart\": true,\n  \"maxResults\": 25\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-news-call",
+      "name": "Fetch Google News + GDELT Articles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "only-articles",
+              "leftValue": "={{$json.recordType}}",
+              "rightValue": "article",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "has-title",
+              "leftValue": "={{$json.title}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-news-articles",
+      "name": "Keep Deduplicated News Articles",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sentiment-badge",
+              "name": "sentimentBadge",
+              "value": "={{($json.toneLabel || 'neutral').toUpperCase()}} ({{$json.tone !== null && $json.tone !== undefined ? $json.tone : 'N/A'}})",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "set-sentiment-tag",
+      "name": "Tag Sentiment Tone",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        920,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "News_Sentiment_Monitor",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordKey": "={{$json.recordKey}}",
+            "provider": "={{$json.provider}}",
+            "publishedAt": "={{$json.publishedAt}}",
+            "source": "={{$json.source}}",
+            "domain": "={{$json.domain}}",
+            "title": "={{$json.title}}",
+            "tone": "={{$json.tone}}",
+            "toneLabel": "={{$json.toneLabel}}",
+            "sourceCountry": "={{$json.sourceCountry}}",
+            "url": "={{$json.url}}"
+          },
+          "matchingColumns": [
+            "recordKey"
+          ]
+        }
+      },
+      "id": "sheets-news-upsert",
+      "name": "Upsert Articles to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"Media Alert [{{$json.provider}} | {{$json.sentimentBadge}}]: *{{$json.title}}*\\nSource: {{$json.source || $json.domain || 'Unknown'}} ({{$json.publishedAt || 'recent'}})\\nLink: {{$json.url}}\"\n}"
+      },
+      "id": "slack-news-alert",
+      "name": "Send Brand Sentiment Alert to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Daily Google News RSS + GDELT v2 Brand Monitor\n1. Set n8n env vars `APIFY_TOKEN` and `SLACK_WEBHOOK_URL`.\n2. Edit `query`, `language`, `country`, and `when` (`1d`, `7d`) in **Fetch Google News + GDELT Articles**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and run once manually before activating.",
+        "height": 195,
+        "width": 540,
+        "color": 5
+      },
+      "id": "sticky-news-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Media Intelligence & Tone Tagging\n- **Keep Deduplicated News Articles** separates article rows from summary records.\n- **Tag Sentiment Tone** formats GDELT `toneLabel` + numeric tone score for Slack triage.\n- **Upsert** deduplicates on `recordKey` across daily runs.",
+        "height": 175,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-news-output",
+      "name": "Deduplication & Sentiment Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Google News + GDELT Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Google News + GDELT Articles": {
+      "main": [
+        [
+          {
+            "node": "Keep Deduplicated News Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Deduplicated News Articles": {
+      "main": [
+        [
+          {
+            "node": "Tag Sentiment Tone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Sentiment Tone": {
+      "main": [
+        [
+          {
+            "node": "Upsert Articles to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Brand Sentiment Alert to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-news-gdelt-template-v1"
+  }
+}

@@ -1,0 +1,254 @@
+{
+  "name": "Substack Newsletter & Trending Posts Watch -> Google Sheets & Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "trigger-substack-daily",
+      "name": "Daily 08:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~substack-api-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"mode\": \"posts\",\n  \"publications\": [\n    \"https://www.lennysnewsletter.com\",\n    \"https://newsletter.pragmaticengineer.com\"\n  ],\n  \"sortBy\": \"new\",\n  \"includeFullBody\": false,\n  \"onlyFreePosts\": false,\n  \"maxResults\": 20\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-substack-call",
+      "name": "Fetch Substack Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-post-id",
+              "leftValue": "={{$json.postId}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-posts",
+      "name": "Keep Valid Substack Posts",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "engagement-total",
+              "name": "engagementTotal",
+              "value": "={{Number($json.likesCount || 0) + Number($json.commentsCount || 0) + Number($json.restacksCount || 0)}}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "set-substack-metrics",
+      "name": "Compute Engagement Score",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        920,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Substack_Intel",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordKey": "={{$json.recordKey}}",
+            "postId": "={{$json.postId}}",
+            "publicationName": "={{$json.publicationName}}",
+            "title": "={{$json.title}}",
+            "authorName": "={{$json.authorName}}",
+            "postDate": "={{$json.postDate}}",
+            "isPaywalled": "={{$json.isPaywalled}}",
+            "likesCount": "={{$json.likesCount}}",
+            "commentsCount": "={{$json.commentsCount}}",
+            "restacksCount": "={{$json.restacksCount}}",
+            "engagementTotal": "={{$json.engagementTotal}}",
+            "url": "={{$json.url}}"
+          },
+          "matchingColumns": [
+            "recordKey"
+          ]
+        }
+      },
+      "id": "sheets-substack-upsert",
+      "name": "Upsert Posts into Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"Substack Post [{{$json.publicationName}}]: *{{$json.title}}*\\nBy {{$json.authorName || 'Author'}} | Likes: {{$json.likesCount || 0}} | Comments: {{$json.commentsCount || 0}} | Restacks: {{$json.restacksCount || 0}}\\nLink: {{$json.url}}\"\n}"
+      },
+      "id": "slack-substack-alert",
+      "name": "Post Trending Substack to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Substack Newsletter Intelligence Watch\n1. Set n8n env vars `APIFY_TOKEN` and `SLACK_WEBHOOK_URL` (zero hardcoded credentials).\n2. Customize `publications` (supports custom domains, subdomains, `@handles`, or switch `mode` to `leaderboard` for Rising/Top Paid rankings).\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and run once manually to test.",
+        "height": 200,
+        "width": 540,
+        "color": 5
+      },
+      "id": "sticky-substack-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Clean Engagement Tracking\n- **Keep Valid Substack Posts** filters non-post records.\n- **Compute Engagement Score** sums likes + comments + restacks.\n- **Upsert Posts into Google Sheets** matches on `recordKey` so daily runs update metrics cleanly.",
+        "height": 175,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-substack-output",
+      "name": "Scoring & Deduplication Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Substack Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Substack Posts": {
+      "main": [
+        [
+          {
+            "node": "Keep Valid Substack Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Valid Substack Posts": {
+      "main": [
+        [
+          {
+            "node": "Compute Engagement Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Engagement Score": {
+      "main": [
+        [
+          {
+            "node": "Upsert Posts into Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post Trending Substack to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-substack-intel-template-v1"
+  }
+}

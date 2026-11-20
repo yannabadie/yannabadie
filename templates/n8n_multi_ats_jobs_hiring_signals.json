@@ -1,0 +1,253 @@
+{
+  "name": "Multi-ATS Career Jobs Hiring Signals (Greenhouse, Lever & Ashby) -> Google Sheets & Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "trigger-ats-daily",
+      "name": "Daily 08:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~multi-ats-jobs-api-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"mode\": \"search\",\n  \"keywords\": [\"engineer\", \"data\", \"ai\"],\n  \"postedWithinDays\": 7,\n  \"includeDescription\": false,\n  \"maxResults\": 50\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-ats-call",
+      "name": "Fetch Multi-ATS Career Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-job-id",
+              "leftValue": "={{$json.jobId}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-jobs",
+      "name": "Keep Valid Job Records",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "hiring-signal-label",
+              "name": "signalLabel",
+              "value": "={{$json.companySlug}} [{{$json.ats}}] — {{$json.title}} ({{$json.location || 'Unspecified'}})",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "set-hiring-signal",
+      "name": "Format B2B Hiring Signal",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        920,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "ATS_Hiring_Signals",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordKey": "={{$json.recordKey}}",
+            "jobId": "={{$json.jobId}}",
+            "ats": "={{$json.ats}}",
+            "companySlug": "={{$json.companySlug}}",
+            "title": "={{$json.title}}",
+            "department": "={{$json.department}}",
+            "location": "={{$json.location}}",
+            "isRemote": "={{$json.isRemote}}",
+            "salaryText": "={{$json.salaryText}}",
+            "postedAt": "={{$json.postedAt}}",
+            "jobUrl": "={{$json.jobUrl}}"
+          },
+          "matchingColumns": [
+            "recordKey"
+          ]
+        }
+      },
+      "id": "sheets-ats-upsert",
+      "name": "Upsert Jobs into Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"B2B Hiring Signal: *{{$json.signalLabel}}*\\nSalary: {{$json.salaryText || 'Not listed'}} | Remote: {{$json.isRemote ? 'Yes' : 'No'}}\\nApply: {{$json.jobUrl}}\"\n}"
+      },
+      "id": "slack-ats-alert",
+      "name": "Post Hiring Signal to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Multi-ATS B2B Hiring Signals (7 ATS Engines)\n1. Set n8n env vars `APIFY_TOKEN` (free Apify account includes $5/mo credits) and `SLACK_WEBHOOK_URL`.\n2. Optionally pass target `careerUrls` or `boards` (`greenhouse`, `lever`, `ashby`, `smartrecruiters`, `workable`, `recruitee`, `workday`) in **Fetch Multi-ATS Career Jobs**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and click **Test Workflow**.",
+        "height": 200,
+        "width": 540,
+        "color": 5
+      },
+      "id": "sticky-ats-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Idempotent Hiring Feed\n- **Keep Valid Job Records** drops summary rows.\n- **Format B2B Hiring Signal** builds a clean Slack headline (`signalLabel`).\n- **Upsert Jobs into Google Sheets** matches on `recordKey` to avoid duplicates across daily runs.",
+        "height": 175,
+        "width": 520,
+        "color": 4
+      },
+      "id": "sticky-ats-output",
+      "name": "Deduplication & Signal Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Multi-ATS Career Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Multi-ATS Career Jobs": {
+      "main": [
+        [
+          {
+            "node": "Keep Valid Job Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Valid Job Records": {
+      "main": [
+        [
+          {
+            "node": "Format B2B Hiring Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format B2B Hiring Signal": {
+      "main": [
+        [
+          {
+            "node": "Upsert Jobs into Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post Hiring Signal to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-multi-ats-jobs-template-v1"
+  }
+}
