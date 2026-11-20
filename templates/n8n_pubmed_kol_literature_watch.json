@@ -1,0 +1,99 @@
+{
+  "name": "Weekly PubMed & Europe PMC KOL Literature Watch (Apify -> Google Sheets + Slack)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [1],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "schedule-pubmed-weekly",
+      "name": "Weekly Monday 08:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~pubmed-europepmc-api-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "token", "value": "={{$env.APIFY_TOKEN}}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"mode\": \"search\",\n  \"query\": \"GLP-1 semaglutide\",\n  \"pubYearFrom\": 2025,\n  \"onlyWithEmail\": true,\n  \"hasFreePdf\": true,\n  \"sortBy\": \"date\",\n  \"maxResults\": 50\n}",
+        "options": {}
+      },
+      "id": "apify-pubmed-call",
+      "name": "Fetch PubMed & Europe PMC Papers (Apify)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "mode": "id", "value": "YOUR_GOOGLE_SHEET_ID" },
+        "sheetName": { "mode": "name", "value": "PubMed_KOL_Papers" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "PMID": "={{$json.pmid}}",
+            "Year": "={{$json.pubYear}}",
+            "Citations": "={{$json.citedByCount}}",
+            "Title": "={{$json.title}}",
+            "Journal": "={{$json.journalIso}}",
+            "FirstAuthor": "={{$json.firstAuthor}}",
+            "AuthorEmail": "={{$json.primaryAuthorEmail}}",
+            "LinkedNCTs": "={{($json.linkedClinicalTrialNcts || []).join(', ')}}",
+            "FreePDF": "={{$json.freePdfUrl}}",
+            "PubMedURL": "={{$json.pubmedUrl}}"
+          },
+          "matchingColumns": ["PMID"]
+        }
+      },
+      "id": "sheets-pubmed-save",
+      "name": "Upsert Papers & Author Emails to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [760, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"New PubMed paper: *\" + $json.title + \"* (\" + $json.journalIso + \" \" + $json.pubYear + \") | Author: \" + ($json.primaryAuthorEmail || 'N/A') + \" | PDF: \" + ($json.freePdfUrl || $json.pubmedUrl)\n}"
+      },
+      "id": "slack-pubmed-alert",
+      "name": "Post KOL Paper Alert to Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 390]
+    }
+  ],
+  "connections": {
+    "Weekly Monday 08:00 Trigger": {
+      "main": [[{ "node": "Fetch PubMed & Europe PMC Papers (Apify)", "type": "main", "index": 0 }]]
+    },
+    "Fetch PubMed & Europe PMC Papers (Apify)": {
+      "main": [[
+        { "node": "Upsert Papers & Author Emails to Google Sheets", "type": "main", "index": 0 },
+        { "node": "Post KOL Paper Alert to Slack", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
