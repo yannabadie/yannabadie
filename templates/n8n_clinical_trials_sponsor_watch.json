@@ -1,0 +1,143 @@
+{
+  "name": "ClinicalTrials.gov API v2 Daily Sponsor & Phase 3 Watch -> Google Sheets & Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "trigger-daily-8am",
+      "name": "Daily 08:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~clinical-trials-api-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"mode\": \"search\",\n  \"condition\": \"oncology\",\n  \"overallStatus\": [\"RECRUITING\", \"NOT_YET_RECRUITING\"],\n  \"phases\": [\"PHASE2\", \"PHASE3\"],\n  \"funderType\": \"INDUSTRY\",\n  \"updatedSince\": \"{{$now.minus({days: 2}).toFormat('yyyy-MM-dd')}}\",\n  \"maxResults\": 50\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-ctg-call",
+      "name": "Fetch Updated Clinical Trials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-nct",
+              "leftValue": "={{$json.nctId}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-ncts",
+      "name": "Keep Valid NCT Studies",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "ClinicalTrials",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nctId": "={{$json.nctId}}",
+            "status": "={{$json.overallStatus}}",
+            "phases": "={{($json.phases || []).join(', ')}}",
+            "leadSponsor": "={{$json.leadSponsor}}",
+            "briefTitle": "={{$json.briefTitle}}",
+            "enrollmentCount": "={{$json.enrollmentCount}}",
+            "primaryContactEmail": "={{$json.primaryContactEmail}}",
+            "primaryContactPhone": "={{$json.primaryContactPhone}}",
+            "lastUpdated": "={{$json.lastUpdatePostedDate}}",
+            "studyUrl": "={{$json.studyUrl}}"
+          },
+          "matchingColumns": ["nctId"]
+        }
+      },
+      "id": "sheets-upsert",
+      "name": "Upsert into Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1020, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"Clinical Trial Update [{{$json.nctId}} | {{($json.phases || []).join('/')}}]: *{{$json.briefTitle}}*\\nSponsor: {{$json.leadSponsor}} | Enrollment: {{$json.enrollmentCount || 'N/A'}}\\nContact: {{$json.primaryContactEmail || 'N/A'}} {{$json.primaryContactPhone || ''}}\\nLink: {{$json.studyUrl}}\"\n}"
+      },
+      "id": "slack-alert",
+      "name": "Send Slack Pipeline Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1020, 400]
+    }
+  ],
+  "connections": {
+    "Daily 08:00 Trigger": {
+      "main": [[{"node": "Fetch Updated Clinical Trials", "type": "main", "index": 0}]]
+    },
+    "Fetch Updated Clinical Trials": {
+      "main": [[{"node": "Keep Valid NCT Studies", "type": "main", "index": 0}]]
+    },
+    "Keep Valid NCT Studies": {
+      "main": [[
+        {"node": "Upsert into Google Sheets", "type": "main", "index": 0},
+        {"node": "Send Slack Pipeline Alert", "type": "main", "index": 0}
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-clinical-trials-template-v1"
+  }
+}
