@@ -17,7 +17,10 @@
       "name": "Daily 08:00 Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -43,7 +46,10 @@
       "name": "Fetch EU TED + BOAMP Tenders",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
+      "position": [
+        480,
+        300
+      ]
     },
     {
       "parameters": {
@@ -69,7 +75,10 @@
       "name": "Keep Valid Tenders",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [740, 300]
+      "position": [
+        740,
+        300
+      ]
     },
     {
       "parameters": {
@@ -99,14 +108,19 @@
             "estimatedValue": "={{$json.estimatedValue}}",
             "noticeUrl": "={{$json.noticeUrl}}"
           },
-          "matchingColumns": ["tenderId"]
+          "matchingColumns": [
+            "tenderId"
+          ]
         }
       },
       "id": "sheets-upsert",
       "name": "Upsert into Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1020, 220]
+      "position": [
+        1020,
+        220
+      ]
     },
     {
       "parameters": {
@@ -120,7 +134,42 @@
       "name": "Send Slack Alert",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1020, 400]
+      "position": [
+        1020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## EU TED v3 & BOAMP Tender Watcher\n1. Set n8n env vars `APIFY_TOKEN` (free Apify tier includes $5/mo credits) and `SLACK_WEBHOOK_URL`.\n2. Edit `countries`, `cpvCodes`, and `sources` in **Fetch EU TED + BOAMP Tenders**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` in **Upsert into Google Sheets** and run a manual test before activating.",
+        "height": 195,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Idempotent Upsert\n- **Keep Valid Tenders** drops empty records.\n- **Upsert into Google Sheets** matches on `tenderId`, so the 2-day rolling window never creates duplicate rows.\n- Buyer email, phone, deadline, and official TED/BOAMP URL are sent to Slack.",
+        "height": 165,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-output",
+      "name": "Deduplication & Routing Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
     }
   ],
   "connections": {

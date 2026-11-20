@@ -7,7 +7,10 @@
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [220, 300]
+      "position": [
+        220,
+        320
+      ]
     },
     {
       "parameters": {
@@ -33,7 +36,36 @@
       "name": "Fetch US NPI Providers",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-npi-number",
+              "leftValue": "={{$json.npi}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-npi",
+      "name": "Keep Valid NPI Providers",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        740,
+        320
+      ]
     },
     {
       "parameters": {
@@ -63,22 +95,86 @@
             "authorizedOfficialPhone": "={{$json.authorizedOfficialPhone}}",
             "nppesUrl": "={{$json.nppesUrl}}"
           },
-          "matchingColumns": ["npi"]
+          "matchingColumns": [
+            "npi"
+          ]
         }
       },
       "id": "sheets-upsert",
       "name": "Upsert into Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [760, 300]
+      "position": [
+        1020,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## U.S. CMS NPPES NPI v2.1 Provider Extractor\n1. Set n8n env var `APIFY_TOKEN` (no hardcoded API keys).\n2. Customize `taxonomyDescription`, `state`, and `enumerationType` (`NPI-1` doctors or `NPI-2` clinics) in **Fetch US NPI Providers**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and click **Test Workflow**.",
+        "height": 195,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Clean Deduplicated Output\n- **Keep Valid NPI Providers** ensures every row carries a 10-digit `npi`.\n- **Upsert into Google Sheets** deduplicates on `npi` and stores practice phone, fax, Authorized Official, and official NPPES link.",
+        "height": 165,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-output",
+      "name": "Validation & Upsert Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
     }
   ],
   "connections": {
     "Manual Trigger": {
-      "main": [[{"node": "Fetch US NPI Providers", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Fetch US NPI Providers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch US NPI Providers": {
-      "main": [[{"node": "Upsert into Google Sheets", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Keep Valid NPI Providers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Valid NPI Providers": {
+      "main": [
+        [
+          {
+            "node": "Upsert into Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

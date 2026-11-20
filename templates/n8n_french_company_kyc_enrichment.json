@@ -12,7 +12,10 @@
       "name": "Webhook (Receive SIREN List)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -38,7 +41,10 @@
       "name": "Enrich SIRENs + BODACC Risk",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
+      "position": [
+        480,
+        300
+      ]
     },
     {
       "parameters": {
@@ -61,7 +67,10 @@
       "name": "Risk Signal Check",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [740, 300]
+      "position": [
+        740,
+        300
+      ]
     },
     {
       "parameters": {
@@ -75,7 +84,10 @@
       "name": "Send Compliance Risk Alert",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1020, 200]
+      "position": [
+        1020,
+        200
+      ]
     },
     {
       "parameters": {
@@ -95,7 +107,42 @@
       "name": "Mark Active Clean",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1020, 400]
+      "position": [
+        1020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## French Company KYC (SIRENE + BODACC)\n1. Set n8n env vars `APIFY_TOKEN` and `SLACK_WEBHOOK_URL` (zero hardcoded secrets).\n2. Test via `POST /webhook-test/french-company-kyc` with body `{\"sirens\": [\"794598813\"]}`.\n3. Returns SIRENE/RNE data, computed EU VAT, and BODACC insolvency flags.",
+        "height": 185,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-setup",
+      "name": "Setup & Webhook Test",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Automated Risk Split\n- **Risk Signal Check** routes any company where `health_signal != active_clean` (`high_risk` / `closed`) to **Send Compliance Risk Alert**.\n- Clean active entities are stamped `APPROVED_ACTIVE_CLEAN` and returned to the webhook caller.",
+        "height": 165,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-routing",
+      "name": "Compliance Risk Routing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
     }
   ],
   "connections": {

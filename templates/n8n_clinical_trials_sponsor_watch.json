@@ -17,7 +17,10 @@
       "name": "Daily 08:00 Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -43,7 +46,10 @@
       "name": "Fetch Updated Clinical Trials",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
+      "position": [
+        480,
+        300
+      ]
     },
     {
       "parameters": {
@@ -66,7 +72,10 @@
       "name": "Keep Valid NCT Studies",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [740, 300]
+      "position": [
+        740,
+        300
+      ]
     },
     {
       "parameters": {
@@ -95,14 +104,19 @@
             "lastUpdated": "={{$json.lastUpdatePostedDate}}",
             "studyUrl": "={{$json.studyUrl}}"
           },
-          "matchingColumns": ["nctId"]
+          "matchingColumns": [
+            "nctId"
+          ]
         }
       },
       "id": "sheets-upsert",
       "name": "Upsert into Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1020, 220]
+      "position": [
+        1020,
+        220
+      ]
     },
     {
       "parameters": {
@@ -116,21 +130,82 @@
       "name": "Send Slack Pipeline Alert",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1020, 400]
+      "position": [
+        1020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ClinicalTrials.gov API v2 Sponsor Watch\n1. Set n8n env vars `APIFY_TOKEN` and `SLACK_WEBHOOK_URL`.\n2. Customize `condition`, `phases`, `funderType`, and `overallStatus` in **Fetch Updated Clinical Trials**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and run once manually to verify columns before enabling daily schedule.",
+        "height": 195,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Deduplicated Trial Pipeline\n- **Keep Valid NCT Studies** filters records with a valid `nctId`.\n- **Upsert into Google Sheets** matches on `nctId` to update recruitment/phase changes cleanly.\n- Posts sponsor, enrollment, and primary contact email/phone to Slack.",
+        "height": 165,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-output",
+      "name": "Idempotent NCT Tracking",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
     }
   ],
   "connections": {
     "Daily 08:00 Trigger": {
-      "main": [[{"node": "Fetch Updated Clinical Trials", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Fetch Updated Clinical Trials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch Updated Clinical Trials": {
-      "main": [[{"node": "Keep Valid NCT Studies", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Keep Valid NCT Studies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Keep Valid NCT Studies": {
-      "main": [[
-        {"node": "Upsert into Google Sheets", "type": "main", "index": 0},
-        {"node": "Send Slack Pipeline Alert", "type": "main", "index": 0}
-      ]]
+      "main": [
+        [
+          {
+            "node": "Upsert into Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Slack Pipeline Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

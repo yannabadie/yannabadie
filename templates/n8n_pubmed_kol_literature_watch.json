@@ -8,7 +8,9 @@
             {
               "field": "weeks",
               "weeksInterval": 1,
-              "triggerAtDay": [1],
+              "triggerAtDay": [
+                1
+              ],
               "triggerAtHour": 8
             }
           ]
@@ -18,7 +20,10 @@
       "name": "Weekly Monday 08:00 Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        320
+      ]
     },
     {
       "parameters": {
@@ -27,25 +32,67 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "token", "value": "={{$env.APIFY_TOKEN}}" }
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "{\n  \"mode\": \"search\",\n  \"query\": \"GLP-1 semaglutide\",\n  \"pubYearFrom\": 2025,\n  \"onlyWithEmail\": true,\n  \"hasFreePdf\": true,\n  \"sortBy\": \"date\",\n  \"maxResults\": 50\n}",
-        "options": {}
+        "options": {
+          "timeout": 60000
+        }
       },
       "id": "apify-pubmed-call",
       "name": "Fetch PubMed & Europe PMC Papers (Apify)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300]
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "valid-pmid",
+              "leftValue": "={{$json.pmid}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid-pmids",
+      "name": "Keep Valid PubMed Papers",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        740,
+        320
+      ]
     },
     {
       "parameters": {
         "operation": "appendOrUpdate",
-        "documentId": { "mode": "id", "value": "YOUR_GOOGLE_SHEET_ID" },
-        "sheetName": { "mode": "name", "value": "PubMed_KOL_Papers" },
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PubMed_KOL_Papers",
+          "mode": "name"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -60,14 +107,19 @@
             "FreePDF": "={{$json.freePdfUrl}}",
             "PubMedURL": "={{$json.pubmedUrl}}"
           },
-          "matchingColumns": ["PMID"]
+          "matchingColumns": [
+            "PMID"
+          ]
         }
       },
       "id": "sheets-pubmed-save",
       "name": "Upsert Papers & Author Emails to Google Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [760, 220]
+      "position": [
+        1020,
+        220
+      ]
     },
     {
       "parameters": {
@@ -75,25 +127,95 @@
         "url": "={{$env.SLACK_WEBHOOK_URL}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"text\": \"New PubMed paper: *\" + $json.title + \"* (\" + $json.journalIso + \" \" + $json.pubYear + \") | Author: \" + ($json.primaryAuthorEmail || 'N/A') + \" | PDF: \" + ($json.freePdfUrl || $json.pubmedUrl)\n}"
+        "jsonBody": "={\n  \"text\": \"New PubMed paper: *{{$json.title}}* ({{$json.journalIso}} {{$json.pubYear}})\\nAuthor: {{$json.primaryAuthorEmail || 'N/A'}} | Citations: {{$json.citedByCount || 0}}\\nPDF/Link: {{$json.freePdfUrl || $json.pubmedUrl}}\"\n}"
       },
       "id": "slack-pubmed-alert",
       "name": "Post KOL Paper Alert to Slack",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [760, 390]
+      "position": [
+        1020,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Weekly PubMed & Europe PMC KOL Watch\n1. Set n8n env vars `APIFY_TOKEN` and `SLACK_WEBHOOK_URL`.\n2. Customize `query`, `pubYearFrom`, `onlyWithEmail`, and `hasFreePdf` in **Fetch PubMed & Europe PMC Papers**.\n3. Replace `REPLACE_WITH_GOOGLE_SHEET_ID` and run a manual test before activating the weekly schedule.",
+        "height": 195,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-setup",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Idempotent Literature Pipeline\n- **Keep Valid PubMed Papers** drops items missing a `pmid`.\n- **Upsert Papers & Author Emails to Google Sheets** deduplicates on `PMID` and stores linked NCT trials + open-access PDF URLs.\n- Slack receives formatted title, journal, author email, citation count, and direct PDF/PubMed link.",
+        "height": 175,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-output",
+      "name": "Deduplication & KOL Alert Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
     }
   ],
   "connections": {
     "Weekly Monday 08:00 Trigger": {
-      "main": [[{ "node": "Fetch PubMed & Europe PMC Papers (Apify)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Fetch PubMed & Europe PMC Papers (Apify)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch PubMed & Europe PMC Papers (Apify)": {
-      "main": [[
-        { "node": "Upsert Papers & Author Emails to Google Sheets", "type": "main", "index": 0 },
-        { "node": "Post KOL Paper Alert to Slack", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Keep Valid PubMed Papers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Valid PubMed Papers": {
+      "main": [
+        [
+          {
+            "node": "Upsert Papers & Author Emails to Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post KOL Paper Alert to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-pubmed-kol-template-v1"
+  }
 }
