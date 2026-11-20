@@ -17,6 +17,7 @@ Building **zero-bloat, deterministic tools** for European B2B compliance, offici
 
 ## Featured Open-Source Repositories
 
+- [**`official-opendata-mcp-n8n-templates`**](https://github.com/yannabadie/official-opendata-mcp-n8n-templates) — Free ready-to-import n8n workflows, Claude/Cursor `mcp.json`, and zero-dependency Python CLI for French SIRENE/BODACC, EU TED/BOAMP tenders & NIH ClinicalTrials.gov API v2 (MIT).
 - [**`facturx-france-2027`**](https://github.com/yannabadie/facturx-france-2027) — Zero-dependency Python CLI & GitHub Action for validating French 2026–2027 Factur-X PDF/A-3 & EN 16931 CII XML invoices (MIT).
 - [**`Meta-YGN`**](https://github.com/yannabadie/Meta-YGN) — Safety runtime for AI coding agents (AST command blocking, auto-checkpoint, meltdown detection, adaptive guards).
 - [**`nexus-swarm-os`**](https://github.com/yannabadie/nexus-swarm-os) — Multi-model collaborative orchestration platform with cross-model verification and built-in security.
