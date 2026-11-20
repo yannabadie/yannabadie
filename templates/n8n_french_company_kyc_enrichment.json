@@ -1,0 +1,150 @@
+{
+  "name": "French Company KYC & Insolvency Screening (SIRENE + BODACC) -> CRM / Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "french-company-kyc",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook (Receive SIREN List)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/yannabadie~french-company-intelligence-mcp/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$env.APIFY_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"mode\": \"enrich_sirens\",\n  \"sirens\": {{JSON.stringify($json.body?.sirens || ['794598813'])}},\n  \"includeBodacc\": true,\n  \"includeBoamp\": false,\n  \"maxResults\": 50\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "apify-sirene-bodacc-call",
+      "name": "Enrich SIRENs + BODACC Risk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "is-high-risk-or-closed",
+              "leftValue": "={{$json.health_signal}}",
+              "rightValue": "active_clean",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "route-risk",
+      "name": "Risk Signal Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"KYC Alert [{{$json.health_signal}}]: *{{$json.company_name}}* (SIREN {{$json.siren}} | VAT {{$json.vat_number}})\\nFlags: {{($json.risk_flags || []).join(', ')}}\\nBODACC notices: {{$json.bodacc_total_notices}}\\nPappers: {{$json.pappers_url}}\"\n}"
+      },
+      "id": "slack-kyc-alert",
+      "name": "Send Compliance Risk Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1020, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "summary-clean",
+              "name": "kyc_status",
+              "value": "APPROVED_ACTIVE_CLEAN",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true
+      },
+      "id": "mark-clean",
+      "name": "Mark Active Clean",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1020, 400]
+    }
+  ],
+  "connections": {
+    "Webhook (Receive SIREN List)": {
+      "main": [
+        [
+          {
+            "node": "Enrich SIRENs + BODACC Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich SIRENs + BODACC Risk": {
+      "main": [
+        [
+          {
+            "node": "Risk Signal Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk Signal Check": {
+      "main": [
+        [
+          {
+            "node": "Send Compliance Risk Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Active Clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "yannabadie-french-company-kyc-template-v1"
+  }
+}
